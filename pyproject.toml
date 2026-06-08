@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arhmm_behavior"
+version = "0.0.1"
+description = "AR-HMM modeling of orofacial behavior before/after striatal stroke, fusing FaceRhythm, DLC, and task data."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Priya Srikanth" }]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "pyarrow>=12",      # parquet (DLC outputs)
+    "h5py>=3.8",        # FaceRhythm TCA / VQT HDF5
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Heavy modeling backends — install when we start fitting models.
+model = [
+    "dynamax>=0.1.3",        # JAX AR-HMM / (r)SLDS, actively maintained
+    "keypoint-moseq>=0.4",   # AR-HMM with a keypoint noise model (DLC backbone)
+]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

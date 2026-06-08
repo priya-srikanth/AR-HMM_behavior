@@ -1,0 +1,17 @@
+name: arhmm_behavior
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy>=1.24
+  - scipy>=1.10
+  - pandas>=2.0
+  - pyarrow>=12
+  - h5py>=3.8
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - pip
+  - pip:
+      - -e .
+      # Modeling backends are heavy (JAX, etc.) — install when needed:
+      #   pip install -e ".[model]"

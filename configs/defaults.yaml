@@ -1,0 +1,41 @@
+# Analysis constants. No magic numbers in source — read them from here.
+# Values transcribed from the FaceRhythm run_20250520 params and verified
+# against the data (see docs/FINDINGS.md).
+
+clocks:
+  video_fps: 250.0          # Flea3 camera acquisition rate
+  wavesurfer_fs: 1000.0     # DAQ rate for Lick/Tone/Reward event indices
+  vqt_downsample_factor: 20 # VQT temporal downsample
+  facerhythm_latent_hz: 12.5  # = video_fps / vqt_downsample_factor
+
+facerhythm:
+  n_points: 1093            # tracked optic-flow points (registered across animals)
+  vqt:
+    f_min_hz: 0.5
+    f_max_hz: 60.0
+    n_freq_bins: 30         # log-spaced
+    take_abs: true          # non-negative power
+  tca:
+    rank: 10                # CP_NN_HALS rank per session
+    method: CP_NN_HALS
+
+consensus:
+  reference_session: { animal: PS46, date: "20250310" }  # ordering reference
+  # Components matched across sessions by spatial⊗frequency cosine + Hungarian.
+  match_metric: spatial_x_frequency
+  # Slots with mean cross-session reliability below this are treated as
+  # unstable (slow/low-power) and excluded or matched on frequency only.
+  reliability_floor: 0.75
+
+bands:
+  # Frequency band (Hz) used to flag lick-candidate components by tuning.
+  # NOTE: frequency tuning alone is NOT sufficient to call a factor "lick" —
+  # it must also align to tongue kinematics (see docs/FINDINGS.md, c9 caveat).
+  lick_hz: [3.5, 7.5]
+  whisk_hz: [8.0, 25.0]
+
+dlc:
+  # Tongue side from x sign matches the upstream lick_events `side` labels:
+  #   side L  <->  x > 0 ,  side R  <->  x < 0   (image/tongue-deviation frame).
+  # This is NOT the mouse-anatomical frame — translate via lr_convention.
+  tongue_side_x_sign: { L: positive, R: negative }
