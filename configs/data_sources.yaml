@@ -1,0 +1,22 @@
+# Machine-specific data locations. Edit per machine; never hardcode these in
+# source — load them through arhmm_behavior.paths.PathResolver.
+#
+# All entries are READ-ONLY sources except `local_work` and `outputs`.
+
+# FaceRhythm run (Richie Hakim's analysis dir; mounts vary by session/machine).
+# Layout: <root>/cam{2,4}/<animal>/<YYYYMMDD>/jobNum_0/analysis_files/{TCA,VQT_Analyzer,...}.h5
+facerhythm_run_root: "/Volumes/sabatini/compute/rich/analysis/face_rhythm/run_20250520"
+
+# Stroke pipeline outputs (Priya's MICROSCOPE share).
+# Subtrees used: dlc_kinematics/cleaned_traces/{tongue,jaw}/<animal>/<date>.parquet
+#                dlc_kinematics/lick_events/tongue/<animal>/<date>.parquet
+#                spout_behavior/licks_and_rewards/<animal>/<date>.npz
+stroke_pipeline_outputs: "/Volumes/Neurobio/MICROSCOPE/Priya/stroke_orofacial_pipeline_outputs"
+
+# Stroke pipeline source repo (for animals.yaml metadata + lr_convention + lick code).
+stroke_pipeline_repo: "/Users/Priya2/Github/stroke_orofacial_pipeline"
+
+# Where this project writes. Local working copies of source data (git-ignored).
+local_work: "./data_local"
+# Figures and other shareable outputs.
+outputs: "./figures"

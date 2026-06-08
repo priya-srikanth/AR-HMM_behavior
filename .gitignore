@@ -1,0 +1,40 @@
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Environments ---
+.venv/
+venv/
+.env
+
+# --- Large / derived data: never commit copies of source data or heavy intermediates ---
+# Local working copies of FaceRhythm/DLC outputs and derived caches.
+**/data_local/
+*.h5
+*.avi
+*.parquet
+# Derived numeric artifacts (regenerate from scripts). Track the *basis* via Git LFS
+# only if desired; by default keep it out of the repo.
+*.npz
+*.npy
+
+# Keep figures (small PNGs that document findings) — do NOT ignore them.
+# (No rule here on purpose.)
+
+# Scratch working folder (the originally-mounted analysis dir). Holds local data
+# copies + duplicate figures; the canonical figures are copied to repo-root figures/.
+Behavior AR-HMM analysis/
