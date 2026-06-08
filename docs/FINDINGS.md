@@ -76,6 +76,65 @@ envelope-vs-envelope comparisons are valid.
   confirmed by DLC F5). It WILL matter for any tone-vs-reward timing analysis — use
   post-fix code + regenerated outputs there.
 
+## F7. Unified feature matrix + baseline AR-HMM (roadmap 3–4)
+- Per-session 12.5 Hz observation matrix assembled for all 33 pre-stroke sessions
+  (PS46–50): 10 FR consensus loadings + 6 DLC tongue/jaw summaries + 4 task event
+  channels + 2 treadmill (speed/accel). Code: `src/arhmm_behavior/features/assemble.py`,
+  `model/design.py`. (`figures/feature_matrix_PS46_0310.png`)
+- **Side mapping quadruple-confirmed**: (1) `origin/main` code chain (emitted `Tone_L`
+  = mouse-L), (2) peri-tone response, (3) DLC tongue-x, (4) biology — PS46 contralesional
+  (mouse-R) licks collapse 973→84→35 the two days after the L-VLS stroke then recover,
+  ipsi preserved. So **c2 = ipsilesional, c3 = contralesional** is locked.
+  (`figures/PS46_contra_lick_validation.png`)
+- **Baseline AR-HMM** (dynamax `LinearAutoregressiveHMM`, K=16, AR lag 1; PCA to 11 dims
+  / 90% var; fit on a 12-session spread, decoded all 33). States are interpretable from
+  their z-scored feature signatures: **lick-ipsilesional** (high fr_c2 + tongue),
+  **lick-contralesional** (high fr_c3 + tongue), **running** (high treadmill/jaw), and
+  quiescent — i.e. the lateralized lick syllables emerge unsupervised.
+  (`figures/arhmm_baseline_diagnostics.png`)
+- **Caveats / next refinements**: median syllable ≈0.16 s is too short — the default
+  transition prior isn't sticky; add a **sticky/HDP-HMM or duration prior** (MoSeq-style)
+  for ~0.3–0.5 s syllables. Batched EM is memory-heavy ((sessions,T,K,K)); production
+  fitting should use a GPU / keypoint-moseq, or stochastic EM. Standardization+PCA are
+  fit on pre-stroke only so post-stroke is projected through the same frame.
+
+## F8. Canonical engine (jax_moseq) + combined beats FaceRhythm-only
+- dynamax MAP-EM over-segments (0.16 s) and its stickiness bifurcates (no smooth
+  control). Switched to **jax_moseq** sticky HDP-AR-HMM (KPMS engine) on the PCA
+  design: smooth kappa→duration (kappa 1e5→1e10 = median 0.32→0.88 s, no collapse).
+  Locked **kappa=1e8, K=16, nlags=3 → ~0.72 s** syllables; lick sub-phases consolidate.
+  (`figures/arhmm_moseq_clean.png`; per-syllable trajectories + crowd-movie-analog
+  clips: `figures/arhmm_syllable_trajectories.png`, `figures/arhmm_syllable_clips.png`)
+- **Combined (FR+DLC+treadmill) >> FaceRhythm-only**, scored by normalized MI of
+  syllables vs INDEPENDENT (wavesurfer/treadmill) labels, matched ~0.7 s, K=16:
+  running 0.66 vs 0.22; licking 0.52 vs 0.32; **lick-side ipsi/contra 0.36 vs 0.03**.
+  FR alone *contains* side info (c2/c3) but an unsupervised AR-HMM on FR doesn't carve
+  licking by side — adding DLC tongue makes lateralized lick syllables emerge. Since the
+  stroke disrupts contralesional licking, the combined model is **necessary**, not just
+  nicer. (`figures/arhmm_combined_vs_fronly.png`)
+- Contra-lick syllable = **S0** (fr_c3 +2.3, tongue-out +2.2); ipsi = S3/S14; run = S10/9/13.
+
+## F9. Post-stroke projection through the pre-stroke model (the payoff)
+- All post-stroke sessions project cleanly through the pre-stroke standardize+PCA+model
+  and decode (states-only, fixed pre-stroke params), so post-stroke behavior is read out
+  in the pre-stroke state space.
+- **PS46 (moderate):** acute phase (0315–0318) both lick syllables drop + running surges
+  (model-based readout of disruption); recovery — contralesional-lick syllable (S0) climbs
+  back and overshoots pre-stroke usage by 0324–0327, matching the raw lick-count overshoot
+  (F6). (`figures/ps46_syllable_usage_across_stroke.png`)
+- **Replication PS46–50 (72 sessions):** the 0313-stroke animals (PS46/47/48) show the
+  strongest effect — ipsilesional-syllable usage drops, contra rebounds/overshoots, and a
+  **manifold-distortion biomarker** (per-frame AR-dynamics log-lik vs pre-stroke baseline)
+  drops post-stroke (PS48 −1.2, PS47 −0.75, PS46 −0.4 nats/frame) then recovers; PS49/PS50
+  show smaller changes in the sampled windows. (`figures/stroke_replication_allanimals.png`)
+- **New biomarker:** per-session AR-dynamics log-likelihood under the frozen pre-stroke
+  model = a continuous, model-based index of how far behavior has departed the pre-stroke
+  manifold — a candidate recovery readout complementary to the raw lick counts.
+- Caveats: per-session usage of a *specific* syllable (S0) varies across individuals; the
+  AR-LL manifold-distortion score is the more robust cross-animal metric. One model fit,
+  sampled post-stroke timepoints, no severe (PS55-class) animal has FaceRhythm. Replicate
+  with more fits/seeds and full timelines.
+
 ## Implications for the model
 Licking is represented in a distributed, lateralized, low-dimensional way in the
 FaceRhythm facial-motion space, complementary to DLC tongue kinematics. This argues
