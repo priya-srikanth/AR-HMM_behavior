@@ -2,6 +2,15 @@
 # Values transcribed from the FaceRhythm run_20250520 params and verified
 # against the data (see docs/FINDINGS.md).
 
+cohort:
+  # Stroke laterality is the SoT field `stroke_laterality` in the upstream
+  # animals.yaml (added phase-8a.10): "L" for the whole PS46–PS55 cohort
+  # (left ventrolateral striatum). READ IT FROM THERE — do not hardcode per
+  # animal. The mapping below is the fixed interpretation of an "L" lesion:
+  # a left-hemisphere lesion affects the body's right side, so
+  #   contralesional = mouse RIGHT ,  ipsilesional = mouse LEFT.
+  lesion_to_contralesional_mouse_side: { L: R, R: L }
+
 clocks:
   video_fps: 250.0          # Flea3 camera acquisition rate
   wavesurfer_fs: 1000.0     # DAQ rate for Lick/Tone/Reward event indices
