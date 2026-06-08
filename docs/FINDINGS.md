@@ -56,6 +56,26 @@ envelope-vs-envelope comparisons are valid.
   (and ipsi/contralesional after stroke) requires `lr_convention.to_mouse_frame`
   (`wavesurfer_sides_match_mouse_sides = false` for this cohort). Not yet applied.
 
+## F6. Task events on the FR clock → mouse-frame + ipsi/contra resolved
+- Wavesurfer events placed on the FR clock via: WS sample → camera frame (upstream
+  `alignment_templates/<cam>/<animal>/<date>.npz`, `sig_camIdx__idx_ws`) → FR latent
+  (VQT `x_axis`). Validated by clean side-specific peri-tone responses.
+  (`figures/FaceRhythm_peritone_c2c3_PS46_0310.png`)
+- The `licks_and_rewards` npz is mouse-frame (upstream `_translate_side_keys` applies
+  `to_mouse_frame` before save). Peri-event: c2 driven by side-L cue (loading 24.6 vs
+  4.0), c3 by side-R (21.5 vs 0.7). With F5 (c2↔x>0, c3↔x<0): **c2 = mouse-LEFT,
+  c3 = mouse-RIGHT lick.**
+- Lesion side = `stroke_laterality` field in upstream `animals.yaml` (phase-8a.10),
+  `"L"` for the whole cohort. Left lesion → contralesional = mouse R. Therefore
+  **c2 = ipsilesional, c3 = CONTRALESIONAL** — c3 is the lick representation predicted
+  to drop then recover post-stroke.
+- **Code-currency caveat (verified)**: the upstream rig mislabels Tone↔Reward channels
+  cohort-wide (fix `b86acfa`); `Reward_*` is the tone TTL, `Tone_*` the reward pulse.
+  This does NOT affect the side result (swap is orthogonal to L/R, and Tone/Reward are
+  bit-identical in the npz so onset times are unambiguous; result also independently
+  confirmed by DLC F5). It WILL matter for any tone-vs-reward timing analysis — use
+  post-fix code + regenerated outputs there.
+
 ## Implications for the model
 Licking is represented in a distributed, lateralized, low-dimensional way in the
 FaceRhythm facial-motion space, complementary to DLC tongue kinematics. This argues
