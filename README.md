@@ -165,17 +165,17 @@ src/arhmm_behavior/
   features/
     assemble.py        build the unified per-session feature matrix (the 4 blocks above)
   model/
-    design.py          pool → standardize → PCA; project new sessions through the frozen frame
+    design.py          pool → standardize → PCA (per-feature weights; --side-fit fits on
+                       tongue-present bins so the sparse lateralized-lick axis survives)
     arhmm.py           dynamax AR-HMM wrapper (baseline)
-    moseq.py           jax_moseq sticky AR-HMM wrapper (canonical engine)
-    arhmm.py           dynamax AR-HMM wrapper (baseline)
-    moseq.py           jax_moseq sticky AR-HMM wrapper (canonical engine)
-    scoring.py         lick-side / running MI, syllable usage, dwell, transitions
+    moseq.py           jax_moseq sticky AR-HMM wrapper (canonical engine; S_0_scale knob)
+    scoring.py         lick-side / running MI, usage, dwell, transitions, per-state lick counts
 scripts/               the pipeline, in run order:
   build_consensus_basis.py   iterated FaceRhythm consensus basis (Model B)
   assemble_features.py       per-session feature matrices on the model grid
-  build_design.py            pooled pre-stroke standardize + PCA (frozen transform)
-  fit_arhmm.py               sticky AR-HMM fit + kappa/nlags sweep, scored by MI
+  build_design.py            pooled pre-stroke standardize + PCA (--side-weight/--side-fit/--pca-var)
+  fit_arhmm.py               sticky AR-HMM fit + kappa/nlags/seed sweep (or --calibrate), scored by MI
+  diagnose_lick_split.py     per-state ipsi/contra lick cross-tab (split-vs-merge check)
   syllable_analysis.py       epoch/severity-stratified syllable + biomarker readout
 tests/                 unit tests
 data_local/            git-ignored scratch (local copies of source data, cached
@@ -185,40 +185,63 @@ data_local/            git-ignored scratch (local copies of source data, cached
 ## 8. How to run
 
 ```bash
-# one-time
-conda env create -f environment.yml
+# one-time. On Apple Silicon the env MUST be native arm64 — jaxlib has no
+# x86/Rosetta build that runs (needs AVX). See environment.yml for the full note.
+CONDA_SUBDIR=osx-arm64 conda env create -f environment.yml   # plain `conda env create` elsewhere
 conda activate arhmm_behavior
+conda config --env --set subdir osx-arm64                    # Apple Silicon: keep installs arm64
 pip install -e .              # assembly/consensus/design deps
-pip install -e ".[model]"     # + jax-moseq for fitting (jax-metal for Apple-GPU)
+pip install -e ".[model]"     # + jax-moseq for fitting (pins jax 0.4.23; see pyproject)
 
 # edit configs/data_sources.yaml so the paths match THIS machine, then run the
 # full pipeline (Model B = FaceRhythm+DLC, PS46–50; Model A = DLC-only, cohort):
 python scripts/build_consensus_basis.py --cam cam2
 python scripts/assemble_features.py --family B        # and: --family A
-python scripts/build_design.py        --family B       # and: --family A
-python scripts/fit_arhmm.py           --family B --kappas 1e7 1e8 1e9 --nlags 3
+# --side-weight/--side-fit retain the sparse lateralized-lick axis through PCA;
+# --pca-var sets latent dim (~5 PCs de-peaks the AR emission). See FINDINGS F10.
+python scripts/build_design.py        --family B --side-weight 2 --side-fit present --pca-var 0.70
+# Validated split config (Model B, 33 Hz): S0=10, kappa=1e6 -> clean ipsi/contra
+# split, lick-side MI ~0.58. NOTE: kappa is emission-dominated here (1e8 collapses);
+# use --calibrate to map kappa/S0 -> duration before trusting a new design.
+python scripts/fit_arhmm.py           --family B --kappas 1e6 --s0-scale 10 --nlags 3
+python scripts/diagnose_lick_split.py --tag B_33hz
 python scripts/syllable_analysis.py   --family B
 ```
 
-To compare sampling rates, set `model.sampling_rate_hz` (33 vs 50) in
-`configs/defaults.yaml` and re-run `assemble_features` → `build_design` →
-`fit_arhmm`; the fit's `sweep_results.csv` (lick-side MI at a matched ~0.5–0.7 s
-syllable duration) picks the rate. Fitting is the heavy step — run it on a GPU.
+**Comparing sampling rates (33 vs 50 Hz).** Every cache is namespaced by rate
+(`features/B_33hz/`, `design_B_50hz`, `fit_B_50hz/`, …) so the two rates coexist
+— pass `--rate` to run each arm (default comes from
+`configs/defaults.yaml model.sampling_rate_hz`):
+
+```bash
+for HZ in 33 50; do
+  python scripts/assemble_features.py --family B --rate $HZ
+  python scripts/build_design.py      --family B --rate $HZ
+  python scripts/fit_arhmm.py         --family B --rate $HZ --kappas 1e7 1e8 1e9 --nlags 3
+done
+```
+
+Then compare `fit_B_33hz/sweep_results.csv` vs `fit_B_50hz/sweep_results.csv`:
+pick the rate+kappa with the highest lick-side MI at a matched ~0.5–0.7 s syllable
+duration. Fitting is the heavy step — run it on a GPU.
 
 ## 9. Status
 
-The full pipeline is built and the code path validated end-to-end (assemble →
-design → fit → decode → score) on a real session; the heavy assembly + fitting
-runs execute on a workstation/GPU from the scripts above. Done: characterized
-FaceRhythm outputs; built and QC'd the iterated consensus basis (PS46–50);
-identified c2/c3 as the ipsi/contra lick components; ported treadmill features;
-fixed tongue handling; parameterized the model-grid rate (default 33 Hz) and
-added the eye→spout tongue-angle features; built the per-family feature assembly,
-pooled pre-stroke design, sticky-AR-HMM fit + kappa/nlags sweep (scored by
-lick-side MI), and the epoch-/severity-stratified syllable + manifold-distortion
-analysis. Next: run the full sweep on a GPU, pick the rate (33 vs 50 Hz), and
-interpret the epoch/severity syllable results. See FINDINGS F7–F9 for the earlier
-baseline AR-HMM and post-stroke projection results.
+The full pipeline runs end-to-end (consensus → assemble → design → fit → decode →
+score → split-diagnose) on the real cohort. Done: characterized FaceRhythm
+outputs; built/QC'd the iterated consensus basis (PS46–50); identified c2/c3 as
+the ipsi/contra lick components; ported treadmill features; fixed tongue handling;
+parameterized the model-grid rate (default 33 Hz) + tongue-angle features; built
+the per-family assembly, pooled pre-stroke design, and the sticky-AR-HMM
+fit/sweep. **Latest (FINDINGS F10):** the AR-HMM now cleanly splits ipsi vs contra
+licking unsupervised (**lick-side MI ≈ 0.58**) once the lateralized axis is
+retained (`--side-fit=present`, tongue_x retention 0.09→0.49), the latent space is
+cut to ~5 PCs, and the AR emission is softened (`S_0_scale=10`) — without which the
+fit is emission-dominated and collapses (kappa is inert; this contradicts the
+earlier F8 kappa=1e8/0.72 s regime — unresolved). Open: syllable **duration** is
+still short (~0.12 s, not ~0.5–0.7 s); confirm across seeds; pick 33 vs 50 Hz; then
+run the epoch-/severity-stratified split + post-stroke contra-lick collapse/recovery
+on this working model. See FINDINGS F7–F10.
 
 ## 10. Data safety
 
