@@ -24,9 +24,18 @@ dependencies = [
 #   pip install -e ".[model]"
 # On an Apple-Silicon Mac, optionally add GPU support with `pip install
 # jax-metal` (experimental; the fitting script falls back to CPU if it misbehaves).
+#
+# JAX is pinned to 0.4.23: jax-moseq 0.3.x still uses APIs newer JAX removed
+# (`jax.interpreters.xla.pytype_aval_mappings`, and jax 0.4.23 in turn needs
+# scipy < 1.13 for `scipy.linalg.tril` — enforced in environment.yml). dynamax
+# is held at 0.1.3 for the same JAX. Without these pins a fresh install resolves
+# jax >= 0.10, which fails to import jax-moseq. numpy < 2 (environment.yml) is
+# required by the jaxlib 0.4.23 ABI.
 model = [
     "jax-moseq>=0.3",        # CANONICAL engine: sticky HDP-AR-HMM (Keypoint-MoSeq core)
-    "dynamax>=0.1.3",        # baseline JAX AR-HMM (MAP-EM) for comparison
+    "jax==0.4.23",           # pinned: jax-moseq 0.3.x breaks on newer JAX
+    "jaxlib==0.4.23",
+    "dynamax==0.1.3",        # baseline JAX AR-HMM (MAP-EM) for comparison; compatible with jax 0.4.23
 ]
 dev = ["pytest>=7", "ruff>=0.4"]
 

@@ -3,8 +3,12 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - numpy>=1.24
-  - scipy>=1.10
+  # numpy is capped < 2 and scipy < 1.13 because the model extras pin an older
+  # JAX (jaxlib 0.4.23, see pyproject "model"): jaxlib 0.4.23 is built against
+  # the numpy 1.x ABI, and jax 0.4.23 imports `scipy.linalg.tril` (removed in
+  # scipy 1.13). The base (non-model) scripts run fine within these bounds too.
+  - numpy>=1.24,<2
+  - scipy>=1.10,<1.13
   - pandas>=2.0
   - pyarrow>=12
   - h5py>=3.8
@@ -15,3 +19,14 @@ dependencies:
       - -e .
       # Modeling backends are heavy (JAX, etc.) — install when needed:
       #   pip install -e ".[model]"
+      #
+      # Apple Silicon (arm64): the env MUST be native arm64, not x86_64 under
+      # Rosetta. jaxlib has no x86 macOS build that runs under Rosetta (it needs
+      # AVX, which Rosetta does not provide). Create the env natively with:
+      #   CONDA_SUBDIR=osx-arm64 conda env create -f environment.yml
+      #   conda activate arhmm_behavior
+      #   conda config --env --set subdir osx-arm64   # keep future installs arm64
+      # The exact JAX/dynamax versions are pinned in pyproject "model" because
+      # jax-moseq 0.3.x only works with jax 0.4.23 (newer jax removed the APIs it
+      # uses). GPU is optional and experimental on Apple Silicon (`pip install
+      # jax-metal`); the fitting script falls back to CPU.
