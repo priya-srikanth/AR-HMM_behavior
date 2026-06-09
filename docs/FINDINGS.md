@@ -170,10 +170,11 @@ envelope-vs-envelope comparisons are valid.
   state. The fit is emission-dominated, so duration is set by S0/dim (not kappa) and lands
   **short (~0.12 s)** with no 0.5–0.7 s plateau. F8's kappa=1e8/0.72 s point is invalid for
   the current pipeline; what changed the regime (rate / feature scale / dim) is **open**.
-- **Caveats:** short syllables (0.12 s); single winning seed (seed 2 of 3 — seed-robustness
-  sweep in progress); per-state cross-tab on 6 sessions (the MI 0.578 is over all 33). The
-  *split* is robust to the short duration, but syllable-as-behavioral-unit is not yet at the
-  ~0.5–0.7 s behavioral timescale.
+- **Seed-robust:** 6/6 seeds give **lick-side MI 0.526–0.580 (mean 0.559 ± 0.020), 14–16
+  states, no collapse** — the split is not a lucky seed. Running MI stays low (~0.07).
+- **Caveats:** short syllables (~0.12 s) — the *split* is robust to this but syllable-as-
+  behavioral-unit is not yet at the ~0.5–0.7 s timescale; per-state cross-tab shown on 6
+  sessions (the MI is over all 33).
 
 ## Implications for the model
 Licking is represented in a distributed, lateralized, low-dimensional way in the

@@ -387,7 +387,8 @@ and lands short (~0.12 s). F8's kappa/duration regime is invalid here — what c
   syllables are short (~0.12 s), not the ~0.5–0.7 s behavioral timescale, and kappa can't
   lengthen them on this design (emission-dominated). For behavioral-unit duration, revisit
   via HSMM (explicit durations) or reconcile the F8-vs-now kappa discrepancy.
-- Confirm the split across seeds (seed-robustness sweep) before locking the config.
+- ~~Confirm the split across seeds~~ DONE: 6/6 seeds MI 0.526–0.580 (mean 0.559±0.020),
+  14–16 states, no collapse — split is seed-robust.
 - Decode all 33 pre-stroke sessions at locked kappa (fit currently on subset).
 - Decode all 33 pre-stroke sessions at locked kappa (fit currently on subset).
 - Combined-feature vs FaceRhythm-only model comparison (what does fusion add?).
