@@ -48,3 +48,17 @@ dlc:
   #   side L  <->  x > 0 ,  side R  <->  x < 0   (image/tongue-deviation frame).
   # This is NOT the mouse-anatomical frame — translate via lr_convention.
   tongue_side_x_sign: { L: positive, R: negative }
+
+model:
+  # Common sampling rate (Hz) of the assembled AR-HMM feature grid. The grid is
+  # defined on the VIDEO timeline; DLC (250 fps) and wavesurfer (1 kHz) signals
+  # are binned/mapped onto it, and the native-12.5 Hz FaceRhythm latents are
+  # interpolated up onto it (smooth envelopes, so interpolation is benign).
+  #
+  # Why not 12.5 Hz: a tongue protrusion is only ~50–120 ms (see FINDINGS
+  # sampling-rate analysis), so 12.5 Hz (80 ms bins) barely samples a lick.
+  # 33 Hz (~30 ms bins) resolves lick bouts and gives a 0.5 s syllable ~16
+  # frames for the AR dynamics; 50 Hz additionally gives a clean 5:1 DLC binning
+  # and 4x FR interpolation and ~5 samples per full protrusion. Parameterized
+  # here so 33 vs 50 can be compared on held-out likelihood + lick-side MI.
+  sampling_rate_hz: 33.0

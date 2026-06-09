@@ -27,6 +27,18 @@ def load_lick_events(path: str | Path) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
+def load_tongue_angle(path: str | Path) -> np.ndarray:
+    """Per-frame eye→spout-referenced signed tongue angle (degrees), 250 fps.
+
+    Computed upstream (``dlc_kinematics/_angle.py``, smoothed); one row per video
+    frame, ~0 at rest and deviating ± during lateral protrusions. This is the
+    biologically meaningful angle (matches the per-lick ``peak_angle_deg``); we
+    use it as a within-lick kinematic feature at native rate, binned onto the
+    model grid.
+    """
+    return pd.read_parquet(path)["angle_deg_smoothed"].to_numpy()
+
+
 def protrusion(df: pd.DataFrame) -> np.ndarray:
     """Per-frame protrusion magnitude ``hypot(x, y)``; 0 where baseline-filled."""
     present = (~df["is_baseline_fill"].to_numpy()).astype(float)

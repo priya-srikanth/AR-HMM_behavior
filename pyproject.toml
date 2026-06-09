@@ -20,10 +20,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Heavy modeling backends — install when we start fitting models.
+# Heavy modeling backends — install when we start fitting models:
+#   pip install -e ".[model]"
+# On an Apple-Silicon Mac, optionally add GPU support with `pip install
+# jax-metal` (experimental; the fitting script falls back to CPU if it misbehaves).
 model = [
-    "dynamax>=0.1.3",        # JAX AR-HMM / (r)SLDS, actively maintained
-    "keypoint-moseq>=0.4",   # AR-HMM with a keypoint noise model (DLC backbone)
+    "jax-moseq>=0.3",        # CANONICAL engine: sticky HDP-AR-HMM (Keypoint-MoSeq core)
+    "dynamax>=0.1.3",        # baseline JAX AR-HMM (MAP-EM) for comparison
 ]
 dev = ["pytest>=7", "ruff>=0.4"]
 

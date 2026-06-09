@@ -19,7 +19,7 @@ import yaml
 
 from arhmm_behavior.paths import PathResolver
 from arhmm_behavior.facerhythm.io import load_tca_factors, load_vqt_meta
-from arhmm_behavior.facerhythm.consensus import build_consensus
+from arhmm_behavior.facerhythm.consensus import build_consensus_iterated
 
 
 def _yyyymmdd(iso_date: str) -> str:
@@ -64,26 +64,30 @@ def main() -> None:
         for a, dates in sessions.items()
         for d in dates
     ]
-    basis = build_consensus(facs, ref)
+    # Iterated (medoid-like) reference: self-consistent basis, tighter
+    # reliabilities than a single pass against one reference session.
+    basis = build_consensus_iterated(facs, ref)
 
     meta = load_vqt_meta(r.vqt_h5(args.ref_animal, args.ref_date, args.cam))
     freqs = meta["frequencies"]
+    peak = basis.peak_freqs(freqs)
     print("slot  peakHz  reliability")
-    for k, (pf, rel) in enumerate(zip(basis.peak_freqs(freqs), basis.reliability)):
-        print(f"  c{k}: {pf:5.1f}   {rel:.2f}")
+    for k, (pf, rel) in enumerate(zip(peak, basis.reliability)):
+        flag = "  <0.80" if rel < 0.80 else ""
+        print(f"  c{k}: {pf:5.1f}   {rel:.2f}{flag}")
 
-    out = r.outputs().parent / "data_local" / "consensus_basis.npz"
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out = r.local_work() / "consensus_basis.npz"
     np.savez(
         out,
         spatial=basis.spatial,
         frequency=basis.frequency,
         reliability=basis.reliability,
+        peak_freq=peak,
         frequencies=freqs,
         point_positions=meta["point_positions"],
         n_sessions=basis.n_sessions,
     )
-    print(f"saved {out}")
+    print(f"saved {out}  ({basis.n_sessions} sessions, K={basis.spatial.shape[1]}, all factors kept)")
 
 
 if __name__ == "__main__":

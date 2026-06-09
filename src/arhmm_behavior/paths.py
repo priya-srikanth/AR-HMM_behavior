@@ -66,10 +66,24 @@ class PathResolver:
             / "dlc_kinematics" / "lick_events" / "tongue" / animal / f"{date}.parquet"
         )
 
+    def dlc_tongue_angle(self, animal: str, date: str) -> Path:
+        """Per-frame smoothed eye→spout-referenced tongue angle (deg), 250 fps."""
+        return (
+            self._root("stroke_pipeline_outputs")
+            / "dlc_kinematics" / "per_frame" / "tongue" / animal / f"{date}.parquet"
+        )
+
     def licks_and_rewards(self, animal: str, date: str) -> Path:
         return (
             self._root("stroke_pipeline_outputs")
             / "spout_behavior" / "licks_and_rewards" / animal / f"{date}.npz"
+        )
+
+    def treadmill_preprocessed(self, animal: str, date: str) -> Path:
+        """Upstream-preprocessed treadmill NPZ (``Treadmill_smoothed`` mm/s + ``Fs``)."""
+        return (
+            self._root("stroke_pipeline_outputs")
+            / "spout_behavior" / "treadmill_signals_preprocessed" / animal / f"{date}.npz"
         )
 
     def animals_yaml(self) -> Path:

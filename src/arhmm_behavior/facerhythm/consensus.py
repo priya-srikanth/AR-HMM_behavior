@@ -85,6 +85,48 @@ def build_consensus(sessions: list[TCAFactors], reference: TCAFactors) -> Consen
     return ConsensusBasis(spatial=Pc, frequency=Fc, reliability=rel / n, n_sessions=n)
 
 
+def build_consensus_iterated(
+    sessions: list[TCAFactors], reference: TCAFactors, max_iter: int = 12
+) -> ConsensusBasis:
+    """Build the consensus basis with an iterated (medoid-like) reference.
+
+    A single pass matches every session to one arbitrary reference session,
+    which biases the basis toward that session's idiosyncrasies. Here we instead
+    iterate: build a consensus from the current reference, promote that consensus
+    to the new reference, re-match all sessions, and repeat until the
+    component→slot assignments stop changing (typically <6 iterations). The
+    result is a self-consistent basis — each session is matched to the cohort
+    average rather than to one session — which tightens the per-component
+    reliabilities (mean cross-session match cosine).
+
+    Parameters
+    ----------
+    sessions : list[TCAFactors]
+        Per-session rank-K factors to average.
+    reference : TCAFactors
+        Initial reference (any representative session); only its spatial and
+        frequency factors are used for the first matching.
+    max_iter : int
+        Safety cap on iterations; the loop exits early on assignment convergence.
+    """
+    ref = reference
+    prev_orders: np.ndarray | None = None
+    for _ in range(max_iter):
+        orders = np.array([match_to_reference(f, ref)[0] for f in sessions])
+        if prev_orders is not None and np.array_equal(orders, prev_orders):
+            break
+        cons = build_consensus(sessions, ref)
+        # Promote the consensus to the next reference (match uses spatial+freq
+        # only, so a placeholder time factor is fine).
+        ref = TCAFactors(
+            spatial=cons.spatial,
+            frequency=cons.frequency,
+            time=np.zeros((1, cons.spatial.shape[1]), dtype=np.float32),
+        )
+        prev_orders = orders
+    return build_consensus(sessions, ref)
+
+
 def project_lowrank(fac: TCAFactors, basis: ConsensusBasis) -> np.ndarray:
     """Loadings of a session in the consensus basis, via its own rank-K TCA.
 

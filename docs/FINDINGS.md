@@ -25,10 +25,25 @@ envelope-vs-envelope comparisons are valid.
   (`figures/FaceRhythm_crossanimal_alignment.png`)
 
 ## F3. Consensus basis (33 pre-stroke sessions, PS46–50)
-- Built by matching every session to the PS46/0310 reference and averaging
-  matched spatial+frequency factors. Reliability per slot 0.62–0.93 (jaw 0.93,
-  lick 0.89, whisk 0.86 highest; slow comps lowest).
-  (`figures/FaceRhythm_consensus_basis.png`)
+- Built by matching every session's components to a reference and averaging the
+  matched spatial+frequency factors.
+- **Iterated reference (canonical, 2026-06-08).** A single pass against the
+  arbitrary PS46/0310 reference biases the basis toward that session. We now
+  iterate (`build_consensus_iterated`): build a consensus, promote it to the new
+  reference, re-match all sessions, repeat until component→slot assignments stop
+  changing (converges in ~5 iterations). This tightened every reliability
+  (mean cross-session match cosine) — all components now **≥ 0.74** vs the
+  single-pass 0.62–0.93. Per-component reliabilities:
+  c7 2.6 Hz 0.95, c2 (ipsi lick) 5.0 Hz 0.92, c9 3.6 Hz 0.92, c0 0.5 Hz 0.90,
+  c4 0.7 Hz 0.89, c1 (whisk) 11.5 Hz 0.89, c8 1.9 Hz 0.86, c5 1.0 Hz 0.79,
+  **c3 (contra lick) 5.9 Hz 0.77**, c6 1.1 Hz 0.74.
+  (`figures/consensus_basis_factors_detail.png` — per-component spatial map +
+  frequency tuning; `figures/consensus_basis_iterated_qc.png` — overview.)
+- **All 10 components kept for now.** c6 (noisy/multimodal slow factor) and c5
+  are the first prune candidates if they add noise to the syllables; c3 is the
+  lowest-reliability *behaviorally meaningful* component (the contralesional lick,
+  spatially more diffuse than ipsi c2) but is always kept — it is the channel
+  predicted to drop then recover after stroke.
 - **Validation**: projecting PS46/0310 onto the consensus basis gives a lick-slot
   loading that tracks the tongue at r = 0.58 — slightly better than the
   per-session fit (0.56). Switching to shared components loses nothing.
