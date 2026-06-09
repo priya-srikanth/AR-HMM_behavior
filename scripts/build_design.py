@@ -30,15 +30,30 @@ import pandas as pd
 from arhmm_behavior.paths import PathResolver
 from arhmm_behavior.model.design import CONTINUOUS, build_design
 
+# Lateralized-lick axis: up-weight so PCA keeps it (at unit weight licking is ~2%
+# of frames, so PCA discards tongue_x_mean ~95% and the model merges ipsi/contra
+# licks into one syllable — see DECISIONS 2026-06-09).
+SIDE_FEATURES = ("tongue_x_mean", "tongue_angle_mean", "fr_c2", "fr_c3")
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", choices=["A", "B"], required=True)
-    ap.add_argument("--pca-var", type=float, default=0.90)
+    ap.add_argument("--pca-var", type=float, default=0.95)
+    ap.add_argument("--side-weight", type=float, default=2.0,
+                    help="multiplier on the lateralized-lick features "
+                         f"({', '.join(SIDE_FEATURES)}) after standardization, so PCA "
+                         "keeps the side axis and the model can carve ipsi/contra licks. "
+                         "1.0 = off (the old behavior that merged sides).")
+    ap.add_argument("--rate", type=float, default=None,
+                    help="model-grid rate (Hz); default from configs/defaults.yaml. "
+                         "Must match the rate the features were assembled at.")
     args = ap.parse_args()
 
     resolver = PathResolver()
-    feat_dir = resolver.local_work() / "features" / args.family
+    rate = args.rate if args.rate else _rate(resolver)
+    tag = f"{args.family}_{int(round(rate))}hz"
+    feat_dir = resolver.local_work() / "features" / tag
     manifest = pd.read_csv(feat_dir / "manifest.csv")
 
     # Columns present in this family's tables, in CONTINUOUS order.
@@ -49,18 +64,24 @@ def main() -> None:
     def _load(row) -> pd.DataFrame:
         return pd.read_parquet(feat_dir / row["animal"] / f"{row['date']}.parquet")
 
+    weights = np.array([args.side_weight if c in SIDE_FEATURES else 1.0 for c in cols])
+    print(f"side-feature weight = {args.side_weight} on "
+          f"{[c for c in cols if c in SIDE_FEATURES]}")
     pre = manifest[manifest["epoch"] == "pre"]
     pre_feats = [_load(r)[cols].to_numpy(np.float32) for _, r in pre.iterrows()]
-    design = build_design(pre_feats, pca_var=args.pca_var, columns=cols)
+    design = build_design(pre_feats, pca_var=args.pca_var, columns=cols, weights=weights)
     print(f"PCA: {len(cols)} features -> {design.components.shape[0]} comps "
           f"({100*design.var_ratio.sum():.0f}% var), fit on {len(pre_feats)} pre-stroke sessions")
+    ret = (design.components ** 2).sum(0)
+    print("retained-in-PCA for side features: "
+          + ", ".join(f"{c}={ret[cols.index(c)]:.2f}" for c in cols if c in SIDE_FEATURES))
 
-    out_dir = resolver.local_work() / f"design_{args.family}"
+    out_dir = resolver.local_work() / f"design_{tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(resolver.local_work() / f"design_{args.family}.npz",
-             mu=design.mu, sd=design.sd, components=design.components,
-             z_mean=design.z_mean, var_ratio=design.var_ratio,
-             columns=np.array(design.columns), rate_hz=_rate(resolver))
+    np.savez(resolver.local_work() / f"design_{tag}.npz",
+             mu=design.mu, sd=design.sd, weights=design.weights,
+             components=design.components, z_mean=design.z_mean,
+             var_ratio=design.var_ratio, columns=np.array(design.columns), rate_hz=rate)
 
     rows = []
     for _, r in manifest.iterrows():

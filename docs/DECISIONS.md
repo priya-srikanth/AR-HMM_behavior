@@ -4,6 +4,110 @@ Chronological log of the analysis/modeling decisions for the AR-HMM, with
 rationale, so the path is reproducible and reversible. Newest entries at the top.
 Companion to `docs/FINDINGS.md` (results) and `docs/DESIGN.md` (plan).
 
+## 2026-06-09 — Lick-side MI failure diagnosed: PCA discarded the lateralization axis (partial fix; confirmation pending)
+
+**Problem:** the rate-sweep fits scored lick-side MI ~0.004–0.064, vs the ~0.36
+achieved before (FINDINGS F8). Diagnosed in the sandbox (no new fitting needed):
+
+1. **Labels are fine** (L-only 4742 / R-only 3887 bins; licking ≈ 1.8% of frames).
+2. **The features carry the side signal loudly** — on L-lick vs R-lick bins:
+   tongue_x_mean d′=6.9, tongue_angle_mean d′=6.6, fr_c2 d′=2.9 (ipsi),
+   fr_c3 d′=−3.2 (contra), all correctly signed. So the refactor did NOT break
+   the signal, and the new angle feature works.
+3. **Root cause: the standardize→PCA-90% step discards the side axis.** Because
+   licking is rare (~2% of frames), the lateralized direction is low total
+   variance, so PCA retains only 5% of `tongue_x_mean` (and 35–57% of
+   fr_c2/fr_c3/angle). The AR-HMM literally never sees the loudest "which side"
+   feature, and lumps ipsi+contra licks into one tongue-out state (S0).
+
+**Fix (committed):** add a per-feature `weights` to `build_design` and up-weight
+the lateralization features (`tongue_x_mean, tongue_angle_mean, fr_c2, fr_c3`)
+after standardization (default `--side-weight 2`, `--pca-var 0.95`). This raises
+retention to angle 0.91 / fr_c2 0.94 / fr_c3 0.96 at 13 components (no collapse).
+`side_weight=1` reproduces the old (axis-discarding) behavior.
+
+**Open question (NOT yet confirmed):** retention is necessary but may not be
+sufficient. Short CPU toy fits with the weighting still merged the two sides into
+one state. An AR-HMM keys on **dynamics**, and L/R licking are **mirror-symmetric**
+(same oscillation, opposite sign), so the side lives in the static mean, not the
+autoregressive dynamics — a sticky/long-syllable model may merge them regardless
+of feature variance. The proper test is a GPU fit with the weighting across a
+kappa sweep that **includes short syllables** (the only regime that showed any
+side signal), with enough iters/seeds. If it still merges, the remedy is likely
+one of: short-syllable kappa, much stronger side weighting, or treating lick-side
+as a **decoded projection** (onto the c2−c3 / tongue-x axis) rather than expecting
+unsupervised syllables to carve a mirror-symmetric distinction. Revisit F8's 0.36
+setup in that light.
+
+## 2026-06-08 — Two model families (FaceRhythm covers only PS46–50)
+
+**Decision:** Fit **two** AR-HMM families rather than one. **Model A** =
+DLC + treadmill + task, **whole cohort PS46–55** — carries the
+severity-/epoch-stratified comparison (the headline). **Model B** =
+FaceRhythm + DLC + treadmill, **PS46–50 only** — the richer model (lateralized
+lick syllables, FR manifold-distortion biomarker), as a depth analysis.
+
+**Why:** Confirmed by directory audit that the FaceRhythm `run_20250520` outputs
+exist only for PS46–50 (cam2/cam4); the moderate-severe/severe animals (PS51,
+PS54, PS55) have **no FaceRhythm**. So a FR-containing model structurally cannot
+include the severe group — exactly the animals the severity contrast needs.
+DLC + treadmill + task exist cohort-wide, so they back Model A. `assemble()`
+makes the FaceRhythm block optional to support both from one code path.
+
+## 2026-06-08 — Model-grid rate = 33 Hz (parameterized); tongue-angle feature added
+
+**Decision:** Place all signals on an explicit **model grid on the video
+timeline at a configurable rate** (`configs/defaults.yaml`
+`model.sampling_rate_hz`, **default 33 Hz**, 50 Hz a one-line switch), instead of
+FaceRhythm's native 12.5 Hz clock. DLC (250 fps) is binned onto the grid,
+wavesurfer events/treadmill (1 kHz) are mapped on via ws→camera→grid, and the
+12.5 Hz FaceRhythm latents are **interpolated up** onto it. Add the **eye→spout
+tongue angle** (`per_frame/tongue` `angle_deg_smoothed`) as `tongue_angle_mean`
++ `tongue_angle_speed`, computed at native 250 fps then binned.
+
+**Why:** A tongue protrusion is only ~50–120 ms (measured from `lick_events`
+rise→fall), so 12.5 Hz (80 ms bins) barely samples a lick (~0.6 samples) and
+destroys within-lick kinematics. 33 Hz (~30 ms bins) resolves lick bouts and
+gives a 0.5 s syllable ~16 frames of AR structure; 50 Hz additionally gives a
+clean 5:1 DLC binning + 4× FR interpolation + ~5 samples/protrusion. Left as a
+parameter so 33 vs 50 is picked empirically (held-out / lick-side MI at matched
+~0.5–0.7 s duration). FaceRhythm above 12.5 Hz is interpolated (smooth envelopes,
+no new info, no artifacts). **Supersedes** the 12.5 Hz / "6 DLC summaries" feature
+design entry below — the matrix is now grid-rate with 8 DLC columns (adds the two
+angle features) + the angle is the eye→spout signed angle (matches per-lick
+`peak_angle_deg`), not a self-computed one.
+
+## 2026-06-08 — Tongue position: NaN-when-absent, not zeroed
+
+**Decision:** Tongue position (`tongue_x_mean`/`y_mean`) is averaged over
+**present frames only** per bin; a fully-absent bin is left **NaN** and imputed
+to the pre-stroke column mean (neutral) *after* standardization in `design.py`.
+Occupancy (`tongue_out_frac`) carries the absence; standardization moments are
+NaN-aware so the fill doesn't bias them.
+
+**Why:** The prior code multiplied position by a present-mask, zeroing absent
+frames — which conflates "tongue retracted" with "tongue at midline (x=0)." When
+the tongue is retracted there is no real position to report, so excluding those
+frames (and letting occupancy encode absence) is the honest representation. A
+fabricated continuous-at-rest trace was considered and rejected.
+
+## 2026-06-08 — Consensus basis: iterated reference, all 10 components kept
+
+**Decision:** Build the FaceRhythm consensus basis with an **iterated
+(medoid-like) reference** (`build_consensus_iterated`): build a consensus,
+promote it to the reference, re-match all sessions, repeat to assignment
+convergence (~5 iters). **Keep all 10 components** for now.
+
+**Why:** A single pass against the arbitrary PS46/0310 reference biases the basis
+toward that session. Iterating tightened every component's reliability (mean
+cross-session match cosine) — all now **≥ 0.74** vs the single-pass 0.62–0.93.
+Visual QC (`figures/consensus_basis_factors_detail.png`) shows the lick (c2 ipsi
+0.92, c3 contra 0.77), whisk (c1), and several focal mid-freq components are
+clean; c6 (1.1 Hz, 0.74, jagged tuning) and c5 (0.79) are the first prune
+candidates if they add noise to syllables. c3 (contra lick) is the lowest-
+reliability *meaningful* component but always kept — it is the channel predicted
+to drop then recover post-stroke. **Augments** the consensus-basis entry below.
+
 ## 2026-06-08 — AR-HMM engine: jax_moseq Gibbs over dynamax MAP-EM
 
 **Decision:** Use **jax_moseq**'s sticky HDP-AR-HMM (the engine inside
@@ -27,6 +131,118 @@ timescale (target 0.5–5 s; classic MoSeq mouse syllables ~0.3–0.5 s).
 **Status:** kappa locked at 1e8 for now; revisit upward (≤~1e11) if coarser
 multi-second bouts are wanted. Fit currently on a 10-session subset; decoding all
 33 pre-stroke sessions is the next step. dynamax kept only as a fast sanity baseline.
+
+## 2026-06-08 — Severity metric = integrated deficit BURDEN per side (best/current)
+
+**Correction:** the equal-weighted z-mean severity score (entry below) wrongly conflated
+PS46 and PS50 — PS46's deeper/longer *contra* deficit got offset by PS50's transient *ipsi*
+nadir dip. Replaced with **integrated deficit burden** = area between baseline and the
+post-stroke response curve over days (depth × duration), computed SEPARATELY for contra and
+ipsi (`np.trapz` of clipped fractional deficit, in "deficit-days"). This weights *lasting*
+deficits and keeps lateralization explicit. Fig: `figures/severity_deficit_burden.png`;
+data `data_local/deficit_burden.pkl`.
+
+**Result (contra burden / ipsi burden, deficit-days):**
+- SEVERE: PS55 58/49 (most bilateral, ratio 1.2), PS54 64/27, then
+- MOD-SEVERE: PS51 36/15.
+- MODERATE: **PS46 5.2/1.1 — most lateralized (contra:ipsi ≈ 4.5), a lasting focal contra
+  deficit**; ~5× PS50's contra burden.
+- MILD: PS49 1.5/2.6, PS50 1.1/0.5, PS47 0.9/0.6, PS48 0.3/0.0.
+
+So **PS46 ≫ PS50** (Priya: PS46 more severe, lasting contra≫ipsi). Total-burden order
+PS55>PS54>PS51≫PS46≫{PS49,PS50,PS47,PS48}. Lateralization (contra:ipsi ratio) is itself
+informative: moderate animals are unilateral (PS46 ratio 4.5), the worst is bilateral
+(PS55 ratio 1.2). This is the current canonical severity metric.
+
+## 2026-06-08 — Severity as a SPECTRUM: depth + staged recovery of both responses
+
+**Upgrade:** add **time-to-recovery for both** responses (ipsilesional-cued→ipsi and
+contralesional-cued→contra; recovery = first post day ≥70% baseline, censored at last
+session) alongside acute nadirs. Build a continuous severity score (z-mean of
+[1−cc_nadir, 1−ii_nadir, log contra_rec, log ipsi_rec]). Fig:
+`figures/severity_spectrum_recovery.png`; data `data_local/trialtype_recovery.pkl`.
+
+**Result (matches Priya's domain read — a spectrum, not 3 bins):**
+- MILD: PS47, PS48, PS49 (shallow, recover ≤2 d).
+- MODERATE: **PS46** — selective contra deficit (cc_nadir 0, ii preserved 0.86), contra
+  recovers ~7 d. (PS50 borderline mild/moderate: brief acute dip, fast recovery 2–3 d —
+  by deficit *persistence* PS46 > PS50, per Priya.)
+- MODERATE-SEVERE: **PS51** — acute bilateral cessation BUT recovers fastest of the
+  cessation animals (ipsi 15 d, contra 45 d).
+- SEVERE: PS54 (28/70 d), **PS55 worst** (70/70 d, on the ipsi=contra diagonal — no ipsi sparing).
+
+**Staged recovery confirmed:** ipsi-response recovers before contra in PS51/PS54
+(below diagonal); PS55 maximally delayed on both. The recovery axis (not acute depth) is
+what distinguishes PS51 (mod-severe) from PS54/PS55 (severe). Hard k-means at N=8 is
+unreliable (mislabels PS50) — trust the continuous score + recovery structure + domain labels.
+
+## 2026-06-08 — Severity refined with cue×response trial-type structure (best)
+
+**Upgrade:** Instead of aggregate lick counts, use the per-trial **cue side × lick side**
+2×2 (acute-post vs baseline): contralesional-cued→contra-lick retention, ipsilesional-
+cued→ipsi-lick retention, erroneous ipsi-licks on contra-cued trials, + contra recovery
+days. k-means on these gives the cleanest, most interpretable grouping — each phenotype in
+its own corner of (contra-response retention × ipsi-response retention):
+- MILD (both retained): PS47 88%/99%, PS48 95%/107%, PS49 76%/84%, PS50 68%/82%.
+- MODERATE (contra lost, ipsi kept = *selective*): **PS46 2%/92%** (+1.1 erroneous ipsi).
+- SEVERE (both ~0 = *bilateral cessation*): PS51, PS54, PS55.
+
+This **separates PS46 (moderate) from PS50 (mild)** — matching Priya's note that PS50
+recovered fast. Fig: `figures/severity_clusters_trialtype.png`; feats:
+`data_local/trialtype_feats.pkl`. Supersedes the aggregate-count grouping below for the
+PS46/PS50 distinction. Still N=8 exploratory; DLC tongue kinematics remain a possible add.
+
+## 2026-06-08 — Candidate stroke-severity groups (spout, FR-independent)
+
+**Method:** k-means on per-animal acute deficit + recovery features from the **spout**
+data (lick counts/sides, mouse-frame), FR-independent, cohort PS46–55 (laser 2.2–5.0 mW).
+Features = acute contralesional-count loss (depth), acute total-drop (bilateral component),
+and **contralesional recovery time** (days for contra-fraction to reach 0.7×baseline,
+gated on total>0.3×baseline so the metric isn't fooled by no-lick days). NOTE: an earlier
+version used *total*-licking recovery, which understated moderate animals (ipsi licking
+recovers fast while contra is still impaired) — contra-specific recovery is the correct
+axis (per Priya: PS46 recovered over several days, PS50 quickly).
+Fig: `figures/severity_clusters_spout.png`.
+
+**Candidate groups (validate against laser power, which clustering didn't see):**
+- MILD: PS47, PS49, PS48 (2.2–2.5 mW) — shallow, contra recovery 1–2 days.
+- MODERATE: PS50, PS46 (2.2–2.5 mW) — deep selective contralesional loss (0.96–0.97);
+  contra recovery PS50 ≈ 3 d, **PS46 ≈ 6 d** (slower-recovering of the two).
+- SEVERE: PS51, PS54, PS55 (3.0–5.0 mW) — near-total bilateral cessation; contra recovery
+  12 / 36 / 40 days (ordered with laser power; PS55 5.0 mW slowest).
+
+Severity = contra-deficit DEPTH × contra RECOVERY time; recovers the mild/moderate/severe
+phenotypes from behavior alone and tracks laser power. Caveats: N=8 exploratory; PS46 vs
+PS50 differ in recovery speed within "moderate". Spout-only — DLC tongue-angle/side could refine.
+Next: cross-reference PS46–50 groups with the FR manifold-distortion biomarker (predict
+MODERATE PS46/PS50 show the strongest distortion). Features:
+`data_local/severity_feats2.pkl`.
+
+## 2026-06-08 — K (number of states) scan confirms K≈16
+
+**Decision:** Keep **K=16**. Held-out scan (train 10 / held-out 5 sessions, kappa=1e8):
+held-out log-lik/frame rises steeply to K≈16 then plateaus (K8 14.40 → K16 14.67 →
+K28 14.71); lick-side ipsi/contra MI is ~0 at K=8 and jumps to ~0.18–0.27 for K≥14
+(running captured at all K); states-used saturates (K28 uses only 22). So K=16 sits
+just past the LL elbow, captures lateralized licking, and doesn't waste states.
+Duration stays ~0.72 s across K (kappa, not K, sets duration). Figure: `figures/kscan.png`.
+Caveat: single fit/seed per K — average seeds for a publication-grade curve.
+
+## 2026-06-08 — Sticky HMM vs HSMM: HSMM NOT warranted
+
+**Decision:** Keep the sticky (geometric-duration) jax_moseq HMM; do **not** build an
+explicit-duration HSMM.
+
+**Evidence (hazard analysis on pre-stroke bouts, `figures/sticky_vs_hsmm_hazard.png`):**
+Real behavioral bouts (running, licking) have **CV ≈ 1.5** (over-dispersed vs geometric's
+~1) and a **flat-to-decreasing hazard** P(end | survived). A peaked-duration HSMM is
+motivated by the *opposite* signature (CV < 1, rising hazard / characteristic length),
+which is absent here. A peaked HSMM would impose a timescale the data lacks and fit worse.
+
+**Nuance:** the mild over-dispersion (heavy tail) reflects behavioral heterogeneity
+(short fidgety + long sustained bouts), best handled by enough states/sub-states (or, if
+explicit durations were ever wanted, a heavy-tailed negative-binomial r<1 — not a peaked
+HSMM). KPMS's sticky-HMM choice is appropriate for this data.
 
 ## 2026-06-08 — Post-stroke projection + manifold-distortion biomarker
 
