@@ -197,6 +197,14 @@ count by construction):
   Caveat: the null controls pre-variability but not reduced acute activity (fewer transitions →
   noisier estimate); PS46 (z=12) is unequivocal, weaker mild animals want a transition-count-
   matched null.
+  - *What the rewiring IS* (PS46, `figures/ps46_rewiring_summary.png`): the behavioral
+    time-budget barely moves (category-destination mass shifts <0.03) and sequencing entropy is
+    unchanged (0.74→0.76) — the reorganization is in the *conditional routing*. The animal stops
+    routing into S12 (a tongue-engaged near-lick posture; S6→S12 −0.33, S5→S12 −0.15), reshuffles
+    which rest micro-states it cycles through (S6→S15 +0.19), and chains the surviving movements
+    more perseveratively (ipsi-lick→ipsi-lick, run→run all +0.07–0.10), with a mild compensatory
+    tilt toward ipsi-lick/run. I.e. a *selective re-routing* of the sub-second sequence, not global
+    disorganization or freezing. Single animal, heuristic state labels — replicate before locking.
 - **(B) Lick-excluded AR-LL biomarker — does NOT replicate; activity-confounded.** Only PS46
   shows the distortion (non-lick ΔLL −48.8 acute); PS47/49/50 go **positive** (+57…+238),
   because quieter animals sit in highly-predictable rest frames → *higher* LL. So the AR-LL
