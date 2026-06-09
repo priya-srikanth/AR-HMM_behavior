@@ -54,6 +54,8 @@ def build_design(
     pca_var: float = 0.90,
     columns: list[str] | None = None,
     weights: np.ndarray | None = None,
+    fit_mask: list[np.ndarray] | None = None,
+    standardize_on_mask: bool = False,
 ) -> Design:
     """Fit standardization + (weighted) PCA on pooled sessions; per-session scores.
 
@@ -73,6 +75,19 @@ def build_design(
         (``tongue_x_mean``, ``tongue_angle_mean``, ``fr_c2``, ``fr_c3``): licking
         is only ~2% of frames, so at unit weight PCA discards ``tongue_x_mean``
         (~95% lost) and the model merges ipsi/contra licks into one syllable.
+    fit_mask : list of (T_i,) bool arrays, optional
+        Per-session row mask selecting which bins ESTIMATE the model. The PCA
+        **covariance** (hence the retained directions) is always computed on the
+        masked rows when given — used to fit on tongue-PRESENT bins only, so
+        sparse side features (NaN ~86% of bins, imputed to 0) keep their real
+        variance and PCA does not prune the side axis. ``None`` = use all rows
+        (original behavior). Every row is still PROJECTED into the fitted space.
+    standardize_on_mask : bool
+        When a ``fit_mask`` is given, also compute the standardization moments
+        (``mu``/``sd``) on the masked rows (True) or on all rows (False). True =
+        "present-fit" (latent frame fully estimated on tongue-present bins);
+        False = "present-cov" (standardization reference stays whole-session,
+        only the PCA directions come from present-bin covariance).
     """
     columns = columns or list(CONTINUOUS)
     weights = np.ones(len(columns)) if weights is None else np.asarray(weights, float)
@@ -80,11 +95,27 @@ def build_design(
     # position when absent) do not bias the mean/std; impute to the column mean
     # only AFTER standardization (NaN -> 0 in standardized space), THEN weight.
     pooled = np.vstack(session_features)
-    mu = np.nanmean(pooled, 0)
-    sd = np.nanstd(pooled, 0) + 1e-9
+    if fit_mask is not None:
+        m = np.concatenate([np.asarray(x, bool) for x in fit_mask])
+        # Severe-stroke / no-lick sessions can be entirely tongue-absent (mask
+        # all-False); they simply contribute no rows to the fit. But if NO
+        # session has a present bin, fall back to all rows so the covariance is
+        # not empty (degenerate cohort — nothing to fit a side axis on anyway).
+        if not m.any():
+            m = np.ones(len(pooled), dtype=bool)
+    else:
+        m = np.ones(len(pooled), dtype=bool)
+    # Standardization moments: masked rows only if requested, else all rows.
+    moment_rows = pooled[m] if (fit_mask is not None and standardize_on_mask) else pooled
+    mu = np.nanmean(moment_rows, 0)
+    sd = np.nanstd(moment_rows, 0) + 1e-9
     Z = np.nan_to_num(np.clip((pooled - mu) / sd, -8, 8)) * weights
-    z_mean = Z.mean(0)
-    Zc = Z - z_mean
+    # PCA directions from the masked-row covariance (present bins when masked):
+    # this is what keeps the sparse side axis from being diluted by the imputed
+    # rows. z_mean centers on the same rows so projection stays consistent.
+    Zcov = Z[m]
+    z_mean = Zcov.mean(0)
+    Zc = Zcov - z_mean
     cov = (Zc.T @ Zc) / len(Zc)
     w, V = np.linalg.eigh(cov)
     order = np.argsort(w)[::-1]

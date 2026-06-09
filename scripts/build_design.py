@@ -48,6 +48,14 @@ def main() -> None:
     ap.add_argument("--rate", type=float, default=None,
                     help="model-grid rate (Hz); default from configs/defaults.yaml. "
                          "Must match the rate the features were assembled at.")
+    ap.add_argument("--side-fit", choices=["off", "present", "present-cov"], default="off",
+                    help="estimate the PCA on tongue-PRESENT bins so the sparse side "
+                         "axis (NaN ~86%% of bins, imputed to 0) is not pruned. "
+                         "'present' = standardize + PCA on present bins; "
+                         "'present-cov' = standardize on all bins, PCA directions from "
+                         "present-bin covariance; 'off' = original (all bins). Sessions "
+                         "with no licks (severe stroke) are simply all-absent and excluded "
+                         "from the fit; they still project with tongue imputed neutral.")
     args = ap.parse_args()
 
     resolver = PathResolver()
@@ -69,7 +77,23 @@ def main() -> None:
           f"{[c for c in cols if c in SIDE_FEATURES]}")
     pre = manifest[manifest["epoch"] == "pre"]
     pre_feats = [_load(r)[cols].to_numpy(np.float32) for _, r in pre.iterrows()]
-    design = build_design(pre_feats, pca_var=args.pca_var, columns=cols, weights=weights)
+
+    # Tongue-present mask per session (a bin is present when tongue_x_mean is not
+    # NaN; NaN == no tongue-out frame in that bin). Drives --side-fit so the
+    # sparse side axis keeps its variance through PCA. No-lick sessions are
+    # all-False and drop out of the fit (handled in build_design).
+    fit_mask = standardize_on_mask = None
+    if args.side_fit != "off":
+        xi = cols.index("tongue_x_mean")
+        fit_mask = [~np.isnan(f[:, xi]) for f in pre_feats]
+        standardize_on_mask = (args.side_fit == "present")
+        present_frac = np.concatenate(fit_mask).mean()
+        n_empty = sum(int(not mk.any()) for mk in fit_mask)
+        print(f"side-fit={args.side_fit}: fitting on tongue-present bins "
+              f"({100*present_frac:.1f}% of bins); {n_empty}/{len(fit_mask)} sessions fully tongue-absent")
+
+    design = build_design(pre_feats, pca_var=args.pca_var, columns=cols, weights=weights,
+                          fit_mask=fit_mask, standardize_on_mask=standardize_on_mask)
     print(f"PCA: {len(cols)} features -> {design.components.shape[0]} comps "
           f"({100*design.var_ratio.sum():.0f}% var), fit on {len(pre_feats)} pre-stroke sessions")
     ret = (design.components ** 2).sum(0)
