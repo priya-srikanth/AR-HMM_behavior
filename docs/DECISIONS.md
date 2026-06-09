@@ -364,10 +364,31 @@ calibration (before any further sweep):** cheaply map kappa→duration on the fi
 subset; if no plateau exists, soften the emission (raise `S_0_scale`) and/or cut
 `latent_dim` rather than only lowering kappa.
 
+## 2026-06-09 — RESOLVED: clean ipsi/contra split via dim-cut + emission softening
+
+**Outcome:** The calibration (`fit_arhmm --calibrate`) showed **kappa is inert across
+1e1–1e8** on the rebuilt 33 Hz design — the fit is emission-dominated (collapse at stiff
+emissions, 1–3-frame fragmentation at soft), with no kappa-controlled duration plateau.
+The fix was the emission side, not kappa: **cut latent dim to ~5 PCs (`--pca-var 0.70`,
+side features still retained — tongue_x 0.49) + soften emissions (`S_0_scale=10`)**. At
+S0=10 / kappa=1e6 / nlags=3 / K=16 the fit uses **14 states and SPLITS sides cleanly**:
+ipsi-specific syllables (state 8 = 5327 ipsi/0 contra) and contra-specific (states
+0/13/10), **lick-side MI = 0.578** over all 33 pre-stroke sessions (vs F8's 0.36, and the
+prior stuck 0.007–0.064). See FINDINGS F10.
+
+**Note / discrepancy:** this contradicts F8's "smooth kappa→duration, locked
+kappa=1e8/0.72 s." On the current pipeline kappa=1e8 collapses; duration is set by S0/dim
+and lands short (~0.12 s). F8's kappa/duration regime is invalid here — what changed it
+(rate? feature scale? dim?) is unresolved. Tooling added: `--calibrate`, `--s0-scale`
+(fit_arhmm), `moseq S_0_scale` param.
+
 ## Open questions / to revisit
-- **Fit collapse (active blocker):** find a kappa/emission regime giving a stable
-  0.5–0.7 s / ~12–16-state fit (likely `S_0_scale`↑ and/or fewer PCs), THEN re-run
-  the ipsi/contra split test — the merge-vs-split question is unanswerable until then.
+- **Duration (was: fit collapse — RESOLVED for the split):** the split is clean but
+  syllables are short (~0.12 s), not the ~0.5–0.7 s behavioral timescale, and kappa can't
+  lengthen them on this design (emission-dominated). For behavioral-unit duration, revisit
+  via HSMM (explicit durations) or reconcile the F8-vs-now kappa discrepancy.
+- Confirm the split across seeds (seed-robustness sweep) before locking the config.
+- Decode all 33 pre-stroke sessions at locked kappa (fit currently on subset).
 - Decode all 33 pre-stroke sessions at locked kappa (fit currently on subset).
 - Combined-feature vs FaceRhythm-only model comparison (what does fusion add?).
 - Sticky kappa gives ~geometric durations; an HSMM (explicit durations) may give

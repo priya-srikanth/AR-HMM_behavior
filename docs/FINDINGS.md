@@ -150,6 +150,31 @@ envelope-vs-envelope comparisons are valid.
   sampled post-stroke timepoints, no severe (PS55-class) animal has FaceRhythm. Replicate
   with more fits/seeds and full timelines.
 
+## F10. Lateralized-lick split recovered on the 33 Hz pipeline — at a re-scaled operating point
+- **Clean unsupervised ipsi/contra split.** On the rebuilt 33 Hz Model B design a fit carves
+  licking by side: large **ipsi-specific** syllables (state 8 = 5327 ipsi / 0 contra) and
+  large **contra-specific** ones (states 0/13/10 ≈ 5800 contra / ~10 ipsi); **~98% of ipsi
+  and ~99% of contra** lick bins fall in side-specific states. **lick-side MI = 0.578** over
+  all 33 pre-stroke sessions — above the F8 benchmark (0.36), vs the prior stuck 0.007–0.064.
+  Task channels are excluded, so the split is unsupervised.
+- **Three coupled fixes were required:** (1) **retain the lateralized axis** —
+  `build_design --side-fit=present` fits standardize+PCA on tongue-PRESENT bins so the sparse
+  `tongue_x_mean` (NaN ~86% of bins) is not imputed-diluted away (retention 0.09→0.49), with
+  `--side-weight` on tongue_x/tongue_angle/fr_c2/fr_c3; (2) **cut latent dim** to ~5 PCs
+  (`--pca-var 0.70`) so the AR-emission likelihood stops swamping the transition prior;
+  (3) **soften the emission** (`moseq S_0_scale=10`). Config: 5-dim present-fit, S0=10,
+  kappa=1e6, nlags=3, K=16 → 14 states used.
+- **Discrepancy with F8 — kappa no longer controls duration here.** F8 reported smooth
+  kappa→duration (1e5→1e10 = 0.32→0.88 s, locked kappa=1e8/0.72 s). On the rebuilt 33 Hz
+  pipeline that does NOT hold: kappa is **inert across 1e1–1e8** and 1e8 **collapses** to one
+  state. The fit is emission-dominated, so duration is set by S0/dim (not kappa) and lands
+  **short (~0.12 s)** with no 0.5–0.7 s plateau. F8's kappa=1e8/0.72 s point is invalid for
+  the current pipeline; what changed the regime (rate / feature scale / dim) is **open**.
+- **Caveats:** short syllables (0.12 s); single winning seed (seed 2 of 3 — seed-robustness
+  sweep in progress); per-state cross-tab on 6 sessions (the MI 0.578 is over all 33). The
+  *split* is robust to the short duration, but syllable-as-behavioral-unit is not yet at the
+  ~0.5–0.7 s behavioral timescale.
+
 ## Implications for the model
 Licking is represented in a distributed, lateralized, low-dimensional way in the
 FaceRhythm facial-motion space, complementary to DLC tongue kinematics. This argues
