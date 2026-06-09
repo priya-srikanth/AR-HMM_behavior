@@ -76,6 +76,24 @@ def locomotion_labels(table, nlags: int = 0, thresh_mm_s: float = 5.0) -> np.nda
     return (spd[nlags:] > thresh_mm_s).astype(int)
 
 
+def state_side_counts(z: np.ndarray, side_labels: np.ndarray, num_states: int) -> np.ndarray:
+    """Per-syllable ipsi-L / contra-R lick-bin counts.
+
+    ``z`` is the syllable sequence and ``side_labels`` the aligned per-bin lick
+    side from :func:`lick_side_labels` (0 = ipsi-L, 1 = contra-R, -1 = none).
+    Returns an ``(num_states, 2)`` integer array: column 0 = ipsi-L bins,
+    column 1 = contra-R bins, per state. Lets you read off whether a state is
+    ipsi-specific (col 0 ≫ col 1), contra-specific, or merges both sides — the
+    structure normalized MI summarizes in one number.
+    """
+    z = np.asarray(z)
+    side = np.asarray(side_labels)
+    out = np.zeros((num_states, 2), dtype=int)
+    m = side >= 0
+    np.add.at(out, (z[m], side[m]), 1)
+    return out
+
+
 def durations_s(z: np.ndarray, rate_hz: float) -> np.ndarray:
     """Syllable run-length durations (seconds) for a 1-D state sequence."""
     z = np.asarray(z)
