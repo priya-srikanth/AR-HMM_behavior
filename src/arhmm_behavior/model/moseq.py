@@ -17,10 +17,18 @@ import numpy as np
 FS_HZ = 12.5
 
 
-def default_hypparams(latent_dim: int, num_states: int = 16, kappa: float = 1e8, nlags: int = 3):
-    """MoSeq-style transition + AR hyperparameters."""
+def default_hypparams(latent_dim: int, num_states: int = 16, kappa: float = 1e8,
+                      nlags: int = 3, s0_scale: float = 0.01):
+    """MoSeq-style transition + AR hyperparameters.
+
+    ``s0_scale`` is the AR residual-noise prior scale (``S_0_scale``). Small values
+    make the emission model over-confident, so the data likelihood swamps the
+    sticky transition prior and median syllable duration becomes razor-sensitive to
+    ``kappa`` (fragment ↔ collapse with no stable plateau). Raising it (0.1–1.0)
+    softens the emissions and opens a usable kappa window — see DECISIONS 2026-06-09.
+    """
     trans = {"num_states": num_states, "alpha": 5.7, "gamma": 1e3, "kappa": float(kappa)}
-    ar = {"latent_dim": latent_dim, "nlags": nlags, "S_0_scale": 0.01, "K_0_scale": 10.0}
+    ar = {"latent_dim": latent_dim, "nlags": nlags, "S_0_scale": float(s0_scale), "K_0_scale": 10.0}
     return trans, ar
 
 
@@ -42,12 +50,12 @@ def make_data(sequences: list[np.ndarray], truncate: bool = True):
 
 
 def fit(data, num_states: int = 16, kappa: float = 1e8, nlags: int = 3,
-        num_iters: int = 50, seed: int = 0):
+        num_iters: int = 50, seed: int = 0, s0_scale: float = 0.01):
     """Fit the Gibbs AR-HMM; returns (model_dict, state_seq (N, T-nlags))."""
     import jax.random as jr
     from jax_moseq.models import arhmm
     P = int(data["x"].shape[-1])
-    trans, ar = default_hypparams(P, num_states, kappa, nlags)
+    trans, ar = default_hypparams(P, num_states, kappa, nlags, s0_scale=s0_scale)
     model = arhmm.init_model(data=data, trans_hypparams=trans, ar_hypparams=ar, seed=jr.PRNGKey(seed))
     for _ in range(num_iters):
         model = arhmm.resample_model(data, **model)

@@ -65,6 +65,16 @@ def main() -> None:
                     help="model-grid rate (Hz); default from configs/defaults.yaml. "
                          "Selects the rate-namespaced design/features to fit. Run at "
                          "33 and 50 Hz and compare sweep_results.csv to pick the rate.")
+    ap.add_argument("--s0-scale", type=float, nargs="+", default=[0.01],
+                    help="AR residual-noise prior scale(s) (moseq S_0_scale). Larger "
+                         "softens the emission so kappa controls duration smoothly "
+                         "(0.01 over-confident -> fragment/collapse with no plateau). "
+                         "Swept in --calibrate; in a normal fit the first value is used.")
+    ap.add_argument("--calibrate", action="store_true",
+                    help="cheap kappa(/S0)->duration map: fit on the subset and report "
+                         "median duration + #states from the fit's OWN states (no full "
+                         "decode, no MI). Use to locate a stable 0.5-0.7 s plateau before "
+                         "committing to a scored sweep.")
     args = ap.parse_args()
 
     resolver = PathResolver()
@@ -87,6 +97,35 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data = moseq.make_data(fit_seqs, truncate=True)
+
+    if args.calibrate:
+        # Cheap kappa(/S_0_scale) -> duration map. Fit on the subset and measure
+        # median duration + #states from the fit's OWN state sequence — no 33-session
+        # decode, no MI. Chart the curve, find a stable 0.5-0.7 s plateau, THEN run a
+        # scored sweep there. One seed (the first) for speed.
+        seed0 = args.seeds[0]
+        rows = []
+        print(f"CALIBRATE: {len(args.nlags)}x{len(args.s0_scale)}x{len(args.kappas)} fits, "
+              f"seed={seed0}, {args.num_iters} iters (duration on the fit subset)")
+        for nlags in args.nlags:
+            for s0 in args.s0_scale:
+                for kappa in args.kappas:
+                    _, z = moseq.fit(data, num_states=args.num_states, kappa=kappa,
+                                     nlags=nlags, num_iters=args.num_iters, seed=seed0,
+                                     s0_scale=s0)
+                    durs = np.concatenate([durations_s(r, rate) for r in np.atleast_2d(z)])
+                    med = float(np.median(durs))
+                    n_used = int(len(np.unique(z)))
+                    rows.append({"nlags": nlags, "s0_scale": s0, "kappa": kappa,
+                                 "median_dur_s": round(med, 3), "n_states_used": n_used})
+                    print(f"  nlags={nlags} S0={s0:g} kappa={kappa:.0e}: "
+                          f"dur={med:.3f}s states={n_used}")
+        with open(out_dir / "calibration_results.csv", "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
+        print(f"\nwrote calibration_results.csv to {out_dir}")
+        return
 
     def _score(model, nlags):
         """Decode every pre-stroke session at full length and pool scores.
@@ -116,7 +155,8 @@ def main() -> None:
             seed_best = None
             for seed in args.seeds:
                 model, _ = moseq.fit(data, num_states=args.num_states, kappa=kappa,
-                                     nlags=nlags, num_iters=args.num_iters, seed=seed)
+                                     nlags=nlags, num_iters=args.num_iters, seed=seed,
+                                     s0_scale=args.s0_scale[0])
                 med, mi_lick, mi_run, n_used = _score(model, nlags)
                 valid = (n_used >= 2) and (0.05 <= med <= 5.0)
                 rec = {"nlags": nlags, "kappa": kappa, "rate_hz": rate, "seed": seed,
