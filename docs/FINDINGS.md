@@ -205,6 +205,15 @@ count by construction):
     more perseveratively (ipsi-lick→ipsi-lick, run→run all +0.07–0.10), with a mild compensatory
     tilt toward ipsi-lick/run. I.e. a *selective re-routing* of the sub-second sequence, not global
     disorganization or freezing. Single animal, heuristic state labels — replicate before locking.
+  - *Replication across PS46–50 (`figures/cohort_rewiring_metrics.png`): the detailed PS46
+    pattern does NOT generalize.* Entropy, perseveration (same-category routing), and S12-posture
+    avoidance are animal-idiosyncratic — PS49/PS50 even reverse sign. The ONLY cross-animal-
+    consistent signature is the **compensatory tilt: all 4 animals route more into ipsi-lick
+    acutely** (Δ +0.007…+0.031). So the among-survivors reorganization is statistically real in
+    every animal (z 3–12) but its CONTENT is not stereotyped here. Caveat that reframes it: PS46 is
+    the only Model-B animal with a substantial deficit (moderate); PS47/49/50 are mild and
+    noise-dominated — so a stereotyped / severity-graded rewiring claim needs **Model A** (whole
+    cohort incl. severe). Model B is underpowered for it.
 - **(B) Lick-excluded AR-LL biomarker — does NOT replicate; activity-confounded.** Only PS46
   shows the distortion (non-lick ΔLL −48.8 acute); PS47/49/50 go **positive** (+57…+238),
   because quieter animals sit in highly-predictable rest frames → *higher* LL. So the AR-LL
