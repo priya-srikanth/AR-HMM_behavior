@@ -382,6 +382,26 @@ and lands short (~0.12 s). F8's kappa/duration regime is invalid here — what c
 (rate? feature scale? dim?) is unresolved. Tooling added: `--calibrate`, `--s0-scale`
 (fit_arhmm), `moseq S_0_scale` param.
 
+## 2026-06-09 — Post-stroke readout: what survives the circularity test (Model B)
+
+**Finding (see FINDINGS F11).** "Contra licks drop then recover" is already in the counts (F6),
+so we asked what the dynamics model adds, with two readouts that exclude the lick count by
+construction. **(A) Among-survivors conditional-transition reorganization REPLICATES across the
+cohort** — all 5 animals show significant acute rewiring of the surviving (non-contra)
+subnetwork (z 3.3–12, p≈0 vs a 300-sample bootstrap pre-null), occupancy-independent, and the
+wiring recovers slower than the counts. This is the genuine value-add over per-stream/spout
+analyses. **(B) The lick-excluded AR-LL biomarker does NOT replicate** — only PS46 distorts;
+mild animals go positive because they move less (rest frames are highly predictable → higher
+LL), so the biomarker is **activity-confounded**.
+
+**Decisions:**
+- The **among-survivors conditional-transition** metric is the reportable non-circular result;
+  prefer it over usage/inflow (which are confounded with the lick count, see prior entry).
+- **Do not use the raw AR-LL manifold biomarker** as a distortion index without **activity
+  normalization** — it tracks movement *amount*, not just movement *quality*.
+- Refinement TODO: a **transition-count-matched** bootstrap null (subsample pre to the acute
+  transition count) to firm up the weaker (mild) animals; the PS46 effect is robust without it.
+
 ## Open questions / to revisit
 - **Duration (was: fit collapse — RESOLVED for the split):** the split is clean but
   syllables are short (~0.12 s), not the ~0.5–0.7 s behavioral timescale, and kappa can't

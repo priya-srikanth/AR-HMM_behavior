@@ -176,6 +176,38 @@ envelope-vs-envelope comparisons are valid.
   behavioral-unit is not yet at the ~0.5–0.7 s timescale; per-state cross-tab shown on 6
   sessions (the MI is over all 33).
 
+## F11. Post-stroke readout (Model B): what the dynamics model adds beyond lick counts
+Decoding every session through the frozen pre-stroke split model (F10) and reading out
+recovery. **PS46 exemplar:** the contra-specific syllables (S0/S10/S13) collapse acutely
+(usage 0.056→0.019) then recover/overshoot (→0.093 chronic); the AR-LL manifold biomarker
+dips ~50 nats acutely and recovers — reproducing F9 on the cleaner model
+(`figures/ps46_recovery_arhmm.png`).
+
+The scientific question is what this adds over the per-stream/spout analyses, since "contra
+licks drop then recover" is already in F6. Two NON-circular tests (each excludes the lick
+count by construction):
+
+- **(A) Among-survivors conditional transitions — REPLICATES (the real value-add).** Restrict
+  transitions to the non-contra (surviving) states, renormalize each source row over surviving
+  destinations (occupancy-independent), and compare pre→acute/chronic against a bootstrap
+  pre-vs-pre null. **All 5 animals show significant acute reorganization** (z 3.3–12, p≈0 vs
+  300-sample null): the surviving repertoire **rewires its sequencing** after stroke — not
+  entailed by fewer contra licks. Recovery is heterogeneous (PS47 fully returns to baseline;
+  PS46/49/50 stay elevated at chronic — i.e. the *wiring* recovers slower than the *counts*).
+  Caveat: the null controls pre-variability but not reduced acute activity (fewer transitions →
+  noisier estimate); PS46 (z=12) is unequivocal, weaker mild animals want a transition-count-
+  matched null.
+- **(B) Lick-excluded AR-LL biomarker — does NOT replicate; activity-confounded.** Only PS46
+  shows the distortion (non-lick ΔLL −48.8 acute); PS47/49/50 go **positive** (+57…+238),
+  because quieter animals sit in highly-predictable rest frames → *higher* LL. So the AR-LL
+  biomarker is confounded by overall movement amount and is **not** a clean manifold-distortion
+  index across animals — needs activity normalization before use.
+
+Bottom line: the model's genuine, cohort-replicated addition over counts is the **sequence-
+level reorganization of the surviving behavioral subnetwork** (and its slower recovery); the
+manifold biomarker as currently built is unreliable. (`scripts/analysis_noncircular.py`,
+`figures/ps46_transition_reorg.png`, `cohort_recovery_by_severity.png`.)
+
 ## Implications for the model
 Licking is represented in a distributed, lateralized, low-dimensional way in the
 FaceRhythm facial-motion space, complementary to DLC tongue kinematics. This argues
