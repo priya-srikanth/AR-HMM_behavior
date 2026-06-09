@@ -13,6 +13,10 @@ facerhythm_run_root: "/Volumes/sabatini/compute/rich/analysis/face_rhythm/run_20
 #                spout_behavior/licks_and_rewards/<animal>/<date>.npz
 stroke_pipeline_outputs: "/Volumes/Neurobio/MICROSCOPE/Priya/stroke_orofacial_pipeline_outputs"
 
+# Wavesurfer<->camera alignment templates (upstream-computed; read-only).
+# Layout: <root>/<cam>/<animal>/<YYYYMMDD>.npz
+alignment_templates: "/Volumes/Neurobio/MICROSCOPE/Priya/stroke_orofacial_pipeline_outputs/dlc_analysis/alignment_templates"
+
 # Stroke pipeline source repo (for animals.yaml metadata + lr_convention + lick code).
 stroke_pipeline_repo: "/Users/Priya2/Github/stroke_orofacial_pipeline"
 
