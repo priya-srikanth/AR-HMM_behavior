@@ -77,10 +77,13 @@ def main() -> None:
     ap.add_argument("--family", choices=["A", "B"], required=True)
     ap.add_argument("--cam", default="cam2")
     ap.add_argument("--animals", nargs="*", default=None)
+    ap.add_argument("--rate", type=float, default=None,
+                    help="model-grid rate (Hz); default from configs/defaults.yaml. "
+                         "Outputs are namespaced by rate so 33 and 50 Hz coexist.")
     args = ap.parse_args()
 
     resolver = PathResolver()
-    rate = _rate_hz(resolver)
+    rate = args.rate if args.rate else _rate_hz(resolver)
     need_fr = args.family == "B"
     basis = _load_consensus(resolver) if need_fr else None
     animals = args.animals or _FAMILY_ANIMALS[args.family]
@@ -88,7 +91,7 @@ def main() -> None:
     with open(resolver.animals_yaml()) as f:
         meta_all = yaml.safe_load(f)
 
-    out_dir = resolver.local_work() / "features" / args.family
+    out_dir = resolver.local_work() / "features" / f"{args.family}_{int(round(rate))}hz"
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     for animal in animals:

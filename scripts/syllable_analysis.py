@@ -91,15 +91,22 @@ def _ar_loglik_per_frame(seq: np.ndarray, z: np.ndarray, params: dict, nlags: in
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--family", choices=["A", "B"], required=True)
+    ap.add_argument("--rate", type=float, default=None,
+                    help="model-grid rate (Hz); default from configs/defaults.yaml. "
+                         "Selects the rate-namespaced fit/design to analyze.")
     args = ap.parse_args()
 
     resolver = PathResolver()
     lw = resolver.local_work()
-    with open(lw / f"fit_{args.family}" / "best_model.pkl", "rb") as f:
+    import yaml
+    rate_sel = args.rate if args.rate else float(yaml.safe_load(
+        open(resolver.config_path.parent / "defaults.yaml"))["model"]["sampling_rate_hz"])
+    tag = f"{args.family}_{int(round(rate_sel))}hz"
+    with open(lw / f"fit_{tag}" / "best_model.pkl", "rb") as f:
         blob = pickle.load(f)
     model, cfg = blob["model"], blob["config"]
     nlags, rate, K = cfg["nlags"], cfg["rate_hz"], int(cfg["num_states"]) if "num_states" in cfg else None
-    design_dir = lw / f"design_{args.family}"
+    design_dir = lw / f"design_{tag}"
     seqs = pd.read_csv(design_dir / "sequences.csv")
 
     animals = yaml.safe_load(open(resolver.animals_yaml()))
@@ -126,7 +133,7 @@ def main() -> None:
             **{f"use_S{k}": round(float(u[k]), 4) for k in range(K)},
         })
     df = pd.DataFrame(rows)
-    out = lw / f"analysis_{args.family}"
+    out = lw / f"analysis_{tag}"
     out.mkdir(parents=True, exist_ok=True)
     df.to_csv(out / "per_session_syllables.csv", index=False)
 

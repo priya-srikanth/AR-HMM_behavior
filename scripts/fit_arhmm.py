@@ -55,15 +55,27 @@ def main() -> None:
     ap.add_argument("--nlags", type=int, nargs="+", default=[3])
     ap.add_argument("--num-states", type=int, default=16)
     ap.add_argument("--n-fit-sessions", type=int, default=12)
-    ap.add_argument("--num-iters", type=int, default=50)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--num-iters", type=int, default=200,
+                    help="Gibbs passes. 50 under-converges (degenerate fits / low MI); "
+                         "use ~200-300, more at higher rates (longer sequences).")
+    ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
+                    help="random seeds; the best non-collapsed seed per (kappa,nlags) is "
+                         "kept, so a single unlucky seed doesn't drive a collapse.")
+    ap.add_argument("--rate", type=float, default=None,
+                    help="model-grid rate (Hz); default from configs/defaults.yaml. "
+                         "Selects the rate-namespaced design/features to fit. Run at "
+                         "33 and 50 Hz and compare sweep_results.csv to pick the rate.")
     args = ap.parse_args()
 
     resolver = PathResolver()
-    design_dir = resolver.local_work() / f"design_{args.family}"
+    import yaml
+    rate_sel = args.rate if args.rate else float(yaml.safe_load(
+        open(resolver.config_path.parent / "defaults.yaml"))["model"]["sampling_rate_hz"])
+    tag = f"{args.family}_{int(round(rate_sel))}hz"
+    design_dir = resolver.local_work() / f"design_{tag}"
     seqs_manifest = pd.read_csv(design_dir / "sequences.csv")
-    rate = float(np.load(resolver.local_work() / f"design_{args.family}.npz")["rate_hz"])
-    feat_dir = resolver.local_work() / "features" / args.family
+    rate = float(np.load(resolver.local_work() / f"design_{tag}.npz")["rate_hz"])
+    feat_dir = resolver.local_work() / "features" / tag
 
     pre = seqs_manifest[seqs_manifest["epoch"] == "pre"].reset_index(drop=True)
     fit_rows = _spread_subset(pre, args.n_fit_sessions)
@@ -71,39 +83,58 @@ def main() -> None:
     print(f"family {args.family} @ {rate} Hz: fit on {len(fit_seqs)} pre-stroke sessions, "
           f"score on {len(pre)}")
 
-    out_dir = resolver.local_work() / f"fit_{args.family}"
+    out_dir = resolver.local_work() / f"fit_{tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    data = moseq.make_data(fit_seqs, truncate=True)
+
+    def _score(model, nlags):
+        """Decode every pre-stroke session at full length and pool scores.
+
+        Returns (median duration s, lick-side MI, running MI, #states used).
+        ``#states used`` < ~2 flags a degenerate collapse to a single syllable.
+        """
+        all_dur, z_all, lick_all, run_all = [], [], [], []
+        for _, r in pre.iterrows():
+            seq = np.load(design_dir / r["path"])
+            z = moseq.decode(moseq.make_data([seq], truncate=False), model)[0]
+            tbl = pd.read_parquet(feat_dir / r["animal"] / f"{r['date']}.parquet")
+            all_dur.append(durations_s(z, rate))
+            z_all.append(z)
+            lick_all.append(lick_side_labels(tbl, nlags=nlags)[:len(z)])
+            run_all.append(locomotion_labels(tbl, nlags=nlags)[:len(z)])
+        z_cat = np.concatenate(z_all)
+        med = float(np.median(np.concatenate(all_dur)))
+        return (med, normalized_mi(z_cat, np.concatenate(lick_all)),
+                normalized_mi(z_cat, np.concatenate(run_all)), int(len(np.unique(z_cat))))
 
     results, best = [], None
     for nlags in args.nlags:
         for kappa in args.kappas:
-            data = moseq.make_data(fit_seqs, truncate=True)
-            model, _ = moseq.fit(data, num_states=args.num_states, kappa=kappa,
-                                 nlags=nlags, num_iters=args.num_iters, seed=args.seed)
-            # Decode every pre-stroke session at full length and pool scores.
-            all_dur, z_all, lick_all, run_all = [], [], [], []
-            for _, r in pre.iterrows():
-                seq = np.load(design_dir / r["path"])
-                z = moseq.decode(moseq.make_data([seq], truncate=False), model)[0]
-                tbl = pd.read_parquet(feat_dir / r["animal"] / f"{r['date']}.parquet")
-                all_dur.append(durations_s(z, rate))
-                z_all.append(z)
-                lick_all.append(lick_side_labels(tbl, nlags=nlags)[:len(z)])
-                run_all.append(locomotion_labels(tbl, nlags=nlags)[:len(z)])
-            z_cat = np.concatenate(z_all)
-            med = float(np.median(np.concatenate(all_dur)))
-            mi_lick = normalized_mi(z_cat, np.concatenate(lick_all))
-            mi_run = normalized_mi(z_cat, np.concatenate(run_all))
-            rec = {"nlags": nlags, "kappa": kappa, "rate_hz": rate,
-                   "median_dur_s": round(med, 3), "mi_lick_side": round(mi_lick, 3),
-                   "mi_running": round(mi_run, 3)}
+            # Fit each seed; keep the best NON-COLLAPSED one (so a single unlucky
+            # seed landing in a 1-state / runaway-duration mode isn't reported).
+            seed_best = None
+            for seed in args.seeds:
+                model, _ = moseq.fit(data, num_states=args.num_states, kappa=kappa,
+                                     nlags=nlags, num_iters=args.num_iters, seed=seed)
+                med, mi_lick, mi_run, n_used = _score(model, nlags)
+                valid = (n_used >= 2) and (0.05 <= med <= 5.0)
+                rec = {"nlags": nlags, "kappa": kappa, "rate_hz": rate, "seed": seed,
+                       "median_dur_s": round(med, 3), "n_states_used": n_used,
+                       "mi_lick_side": round(mi_lick, 3), "mi_running": round(mi_run, 3)}
+                key = (valid, mi_lick)  # prefer non-collapsed, then high lick-side MI
+                if seed_best is None or key > seed_best[0]:
+                    seed_best = (key, rec, model)
+            rec = seed_best[1]
             results.append(rec)
-            print(f"  nlags={nlags} kappa={kappa:.0e}: dur={med:.2f}s "
-                  f"lick-side MI={mi_lick:.3f} running MI={mi_run:.3f}")
-            in_range = 0.3 <= med <= 0.9
-            score = (in_range, mi_lick)
-            if best is None or score > best[0]:
-                best = (score, rec, model)
+            print(f"  nlags={nlags} kappa={kappa:.0e} (best of {len(args.seeds)} seeds, "
+                  f"seed={rec['seed']}): dur={rec['median_dur_s']}s "
+                  f"states={rec['n_states_used']} lick-MI={rec['mi_lick_side']} "
+                  f"run-MI={rec['mi_running']}")
+            in_range = 0.3 <= rec["median_dur_s"] <= 0.9
+            gscore = (in_range, rec["mi_lick_side"])
+            if best is None or gscore > best[0]:
+                best = (gscore, rec, seed_best[2])
 
     with open(out_dir / "sweep_results.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(results[0].keys()))
