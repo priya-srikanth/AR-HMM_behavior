@@ -329,7 +329,45 @@ behaviorally-meaningful components (lick, jaw, whisk) reproduce across sessions
 (cosine ~0.95) and animals (spatial 0.74–0.97), so a shared basis is well-defined;
 slow/low-power components are unreliable and down-weighted. See FINDINGS F2/F3.
 
+## 2026-06-09 — Lateralized-lick retention fix (`--side-fit`); fit-collapse blocker
+
+**Decision:** Add `build_design --side-fit=present`: estimate standardization + PCA
+on tongue-**present** bins (drop the ~86% baseline-filled/absent bins from the
+**fit**; still project all bins). The per-feature `--side-weight` on the lateralized
+features (`tongue_x_mean`, `tongue_angle_mean`, `fr_c2`, `fr_c3`) stays.
+
+**Why:** `tongue_x_mean` was already baseline-fill-masked, but is NaN ~86% of bins
+(tongue out only ~13.5% of the time) and got imputed to the mean before PCA —
+diluting its variance so PCA discarded it (retention **0.09** even at weight 4).
+Fitting PCA on present bins recovers it: **tongue_x retention 0.09 → 0.51**. The
+alternative "present-cov" (standardize on all bins, covariance on present) does NOT
+help — tongue_x stays 0.09; only present-bin *standardization* lets the sparse axis
+compete. No-lick / severe-stroke sessions are entirely tongue-absent → they
+contribute nothing to the fit but still project (tongue imputed neutral ≈ "tongue
+out 0"); guarded against the degenerate all-absent cohort.
+
+**Status — the ipsi/contra SPLIT is still untested, blocked by fit collapse.** With
+tongue_x retained, the fit (kappa 5e8/1e9, 500 iters) **collapsed to 1–2 states**
+(median dwell 3621 s = whole session, lick-MI 0); the per-state cross-tab then
+trivially shows all licks in one mega-state — uninformative. More iters made the
+collapse worse (the sticky prior converges harder). So retention is fixed but a
+separate convergence problem gates the science.
+
+**Scale investigation (why it collapses):** PCA scores are already ~unit-scale
+(per-PC std 0.6–1.8) → **whitening is not the lever**. Data is **83% quiescent**.
+The kappa→duration curve is pathological: by the sticky-prior math kappa≈1e2 gives
+~0.5 s dwell, yet empirically kappa 1e7 fragments (0.15 s) and 2e8 collapses — a
+sharp fragment→collapse crossover with **no 0.5–0.7 s plateau**, the signature of an
+over-confident AR emission (`S_0_scale=0.01` tiny → residual variance
+underestimated), amplified by 14 latent dims and the rest-mass. **Proposed
+calibration (before any further sweep):** cheaply map kappa→duration on the fit
+subset; if no plateau exists, soften the emission (raise `S_0_scale`) and/or cut
+`latent_dim` rather than only lowering kappa.
+
 ## Open questions / to revisit
+- **Fit collapse (active blocker):** find a kappa/emission regime giving a stable
+  0.5–0.7 s / ~12–16-state fit (likely `S_0_scale`↑ and/or fewer PCs), THEN re-run
+  the ipsi/contra split test — the merge-vs-split question is unanswerable until then.
 - Decode all 33 pre-stroke sessions at locked kappa (fit currently on subset).
 - Combined-feature vs FaceRhythm-only model comparison (what does fusion add?).
 - Sticky kappa gives ~geometric durations; an HSMM (explicit durations) may give

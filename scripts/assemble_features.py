@@ -63,7 +63,7 @@ def _sessions_with_all_sources(resolver, animal, cam, need_fr):
     have["angle"] = {p.stem for p in (out_root / "dlc_kinematics" / "per_frame" / "tongue" / animal).glob("*.parquet")}
     have["tread"] = {p.stem for p in (out_root / "spout_behavior" / "treadmill_signals_preprocessed" / animal).glob("*.npz")}
     have["licks"] = {p.stem for p in (out_root / "spout_behavior" / "licks_and_rewards" / animal).glob("*.npz")}
-    have["align"] = {p.stem for p in (resolver._root("alignment_templates") / cam / animal).glob("*.npz")}
+    have["align"] = {p.stem for p in resolver.alignment_template_dir(animal, cam).glob("*.npz")}
     common = set.intersection(*have.values())
     if need_fr:
         fr_root = resolver.facerhythm_session(animal, "", cam).parent.parent
@@ -107,7 +107,7 @@ def main() -> None:
             lr = np.load(resolver.licks_and_rewards(animal, date), allow_pickle=True)
             events = {k: lr[k] for k in _EVENT_KEYS}
             template = load_alignment_template(
-                resolver._root("alignment_templates") / args.cam / animal / f"{date}.npz")
+                resolver.alignment_template(animal, date, args.cam))
             fr_kwargs = {}
             if need_fr:
                 fr_kwargs = dict(

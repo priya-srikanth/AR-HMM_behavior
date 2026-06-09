@@ -89,6 +89,15 @@ class PathResolver:
     def animals_yaml(self) -> Path:
         return self._root("stroke_pipeline_repo") / "configs" / "animals.yaml"
 
+    # --- Alignment templates (wavesurfer <-> camera) ------------------------
+    def alignment_template_dir(self, animal: str, cam: str = "cam2") -> Path:
+        """Directory of a cam/animal's wavesurfer↔camera alignment templates."""
+        return self._root("alignment_templates") / cam / animal
+
+    def alignment_template(self, animal: str, date: str, cam: str = "cam2") -> Path:
+        """Wavesurfer↔camera alignment-template npz for one session."""
+        return self.alignment_template_dir(animal, cam) / f"{date}.npz"
+
     # --- Outputs (writable) -------------------------------------------------
     def local_work(self) -> Path:
         p = self._root("local_work")
